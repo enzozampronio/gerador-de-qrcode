@@ -1,0 +1,44 @@
+name: Deploy to DigitalOcean VPS
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  # Permite executar manualmente também
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        script: |
+          cd ${{ secrets.VPS_PROJECT_PATH }}
+          git pull origin main
+          
+          # Ativar ambiente virtual se existir
+          if [ -d "venv" ]; then
+            source venv/bin/activate
+            pip install -r requirements.txt 2>/dev/null || echo "No requirements.txt found"
+          fi
+          
+          # Reiniciar serviço web se configurado
+          if command -v systemctl &> /dev/null; then
+            sudo systemctl restart qrcode-app 2>/dev/null || echo "Service not configured"
+          fi
+          
+          # Recarregar nginx/apache se necessário
+          sudo systemctl reload nginx 2>/dev/null || echo "Nginx not configured"
+          
+          echo "Deploy completed successfully!"
